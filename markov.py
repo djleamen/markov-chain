@@ -57,7 +57,11 @@ def sample_next(options: List[str], temperature: float) -> str:
     if temperature <= 0:
         temperature = 1e-9
     expo = 1.0 / temperature
-    weights = [freq ** expo for _, freq in items]
+    # Normalize by the max frequency so the base stays in (0, 1] and large
+    # exponents (tiny temperatures) can't overflow. Scaling every weight by
+    # the same constant leaves the sampling distribution unchanged.
+    max_freq = max(freq for _, freq in items)
+    weights = [(freq / max_freq) ** expo for _, freq in items]
     total = sum(weights)
     r = random.random() * total
     cum = 0.0
@@ -138,8 +142,11 @@ def main() -> None:
 
     data = args.text
     if args.file:
-        with open(args.file, "r", encoding="utf-8", errors="ignore") as f:
-            data = f.read()
+        try:
+            with open(args.file, "r", encoding="utf-8", errors="ignore") as f:
+                data = f.read()
+        except OSError as e:
+            ap.error(f"could not read --file: {e}")
 
     if not data.strip():
         # Built-in tiny chaos corpus so it runs out of the box
